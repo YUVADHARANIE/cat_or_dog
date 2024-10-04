@@ -1,38 +1,44 @@
 import streamlit as st
-import numpy as np
-import tensorflow as tf
 from keras.models import load_model
-from keras.preprocessing import image
-
-# Load your pre-trained model
-# Ensure the model file is in the same directory or provide the correct path
-model = load_model('your_model.h5')  # Change 'your_model.h5' to your model file
+import numpy as np
+from PIL import Image
 
 # Function to preprocess the uploaded image
-def preprocess_image(img):
-    img = img.resize((150, 150))  # Resize to the expected input size
-    img_array = image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0)  # Expand dimensions to match model input
-    img_array /= 255.0  # Normalize the image
-    return img_array
+def preprocess_image(image):
+    image = image.resize((224, 224))  # Resize image to match model input
+    image = np.array(image) / 255.0    # Normalize the image
+    image = np.expand_dims(image, axis=0)  # Add batch dimension
+    return image
 
-# Function to make predictions
-def predict(img):
-    processed_img = preprocess_image(img)
-    predictions = model.predict(processed_img)
-    return 'Dog' if predictions[0][0] > 0.5 else 'Cat'
+# Upload model file
+uploaded_model = st.file_uploader("Upload your Keras model (.h5)", type="h5")
 
-# Streamlit UI
-st.title('Cat or Dog Classifier')
-st.write("Upload an image of a cat or a dog to see the prediction.")
+if uploaded_model is not None:
+    try:
+        model = load_model(uploaded_model)
+        st.success("Model loaded successfully!")
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+else:
+    # Optionally load a default model if not uploaded
+    # Uncomment and specify the correct path if you have a default model
+    # model = load_model('your_default_model.h5')
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+    st.warning("Please upload your Keras model to proceed.")
 
-if uploaded_file is not None:
-    img = image.load_img(uploaded_file, target_size=(150, 150))
-    st.image(img, caption='Uploaded Image', use_column_width=True)
-    st.write("")
-    st.write("Classifying...")
+# Image upload for prediction
+uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "jpeg", "png"])
 
-    label = predict(img)
-    st.write(f'This image is a: **{label}**')
+if uploaded_image is not None and 'model' in locals():
+    image = Image.open(uploaded_image)
+    st.image(image, caption='Uploaded Image', use_column_width=True)
+
+    # Preprocess the image
+    preprocessed_image = preprocess_image(image)
+
+    # Make prediction
+    predictions = model.predict(preprocessed_image)
+    predicted_class = np.argmax(predictions, axis=1)
+
+    # Display prediction result
+    st.write(f"Predicted class: {predicted_class[0]}")
