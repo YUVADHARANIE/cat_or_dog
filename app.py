@@ -1,44 +1,41 @@
 import streamlit as st
 from keras.models import load_model
+from PIL import Image, ImageOps
 import numpy as np
-from PIL import Image
 
-# Function to preprocess the uploaded image
-def preprocess_image(image):
-    image = image.resize((224, 224))  # Resize image to match model input
-    image = np.array(image) / 255.0    # Normalize the image
-    image = np.expand_dims(image, axis=0)  # Add batch dimension
-    return image
+# Load the model
+model = load_model("keras_model.h5", compile=False)
 
-# Upload model file
-uploaded_model = st.file_uploader("Upload your Keras model (.h5)", type="h5")
+# Load the labels
+class_names = open("labels.txt", "r").readlines()
 
-if uploaded_model is not None:
-    try:
-        model = load_model(uploaded_model)
-        st.success("Model loaded successfully!")
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-else:
-    # Optionally load a default model if not uploaded
-    # Uncomment and specify the correct path if you have a default model
-    # model = load_model('your_default_model.h5')
+# Streamlit app
+st.title("Image Classification with TensorFlow")
 
-    st.warning("Please upload your Keras model to proceed.")
+# File uploader
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
-# Image upload for prediction
-uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "jpeg", "png"])
+if uploaded_file is not None:
+    # Load and preprocess the image
+    image = Image.open(uploaded_file).convert("RGB")
+    size = (224, 224)
+    image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
+    
+    # Display the uploaded image
+    st.image(image, caption="Uploaded Image", use_column_width=True)
+    
+    # Prepare the image for prediction
+    image_array = np.asarray(image)
+    normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
+    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+    data[0] = normalized_image_array
 
-if uploaded_image is not None and 'model' in locals():
-    image = Image.open(uploaded_image)
-    st.image(image, caption='Uploaded Image', use_column_width=True)
+    # Predict the class
+    prediction = model.predict(data)
+    index = np.argmax(prediction)
+    class_name = class_names[index]
+    confidence_score = prediction[0][index]
 
-    # Preprocess the image
-    preprocessed_image = preprocess_image(image)
-
-    # Make prediction
-    predictions = model.predict(preprocessed_image)
-    predicted_class = np.argmax(predictions, axis=1)
-
-    # Display prediction result
-    st.write(f"Predicted class: {predicted_class[0]}")
+    # Display the prediction
+    st.write(f"Class: {class_name[2:]}")
+    st.write(f"Confidence Score: {confidence_score:.2f}")
