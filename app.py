@@ -1,48 +1,70 @@
 import streamlit as st
+import numpy as np
 from keras.models import load_model
 from PIL import Image, ImageOps
-import numpy as np
 
-# Disable scientific notation for clarity
-np.set_printoptions(suppress=True)
+# Title of the Streamlit app
+st.title("Teachable Machine Model with Streamlit")
 
-# Load the model
-model = load_model("keras_model.h5", compile=False)
+# Load the model from your repository
+MODEL_PATH = "keras_Model.h5"
+LABELS_PATH = "labels.txt"
 
-# Load the labels
-with open("labels.txt", "r") as f:
-    class_names = [line.strip() for line in f.readlines()]
+# Load class labels from the labels.txt file
+def load_labels(label_file):
+    try:
+        with open(label_file, "r") as f:
+            labels = f.read().splitlines()
+        return labels
+    except Exception as e:
+        st.error(f"Error loading labels: {e}")
+        return []
 
-# Function to preprocess the image
-def preprocess_image(image):
+class_names = load_labels(LABELS_PATH)
+
+# Function to load the model
+@st.cache_resource
+def load_keras_model():
+    try:
+        model = load_model(MODEL_PATH, compile=False)
+        return model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
+
+# Load the model once the app starts
+model = load_keras_model()
+if model:
+    st.success("Model loaded successfully!")
+
+# Upload an image for prediction
+uploaded_image = st.file_uploader("Upload an image for prediction", type=["jpg", "png", "jpeg"])
+
+if uploaded_image is not None and model is not None:
+    # Load and display the uploaded image
+    img = Image.open(uploaded_image).convert("RGB")
+    st.image(img, caption='Uploaded Image', use_column_width=True)
+
+    # Resize and preprocess the image
     size = (224, 224)
-    image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
-    image_array = np.asarray(image)
+    img = ImageOps.fit(img, size, Image.Resampling.LANCZOS)
+
+    # Turn the image into a numpy array and normalize it
+    image_array = np.asarray(img)
     normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
-    return np.expand_dims(normalized_image_array, axis=0)  # Expand dims to fit model input
 
-# Streamlit UI
-st.title("Image Classification with Keras")
-st.write("Upload an image to classify.")
+    # Create the array of the right shape to feed into the keras model
+    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+    data[0] = normalized_image_array
 
-# Image upload
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+    # Make predictions
+    if st.button("Predict"):
+        prediction = model.predict(data)
+        index = np.argmax(prediction)
+        class_name = class_names[index]
+        confidence_score = prediction[0][index]
 
-if uploaded_file is not None:
-    # Load and display the image
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
-
-    # Preprocess the image
-    data = preprocess_image(image)
-
-    # Predict using the model
-    prediction = model.predict(data)
-    index = np.argmax(prediction)
-    class_name = class_names[index]
-    confidence_score = prediction[0][index]
-
-    # Display prediction and confidence score
-    st.write(f"**Class:** {class_name}")
-    st.write(f"**Confidence Score:** {confidence_score:.2f}")
+        # Display the results
+        st.write(f"Predicted Class: {class_name.strip()}")
+        st.write(f"Confidence Score: {confidence_score:.2f}")
 
