@@ -10,7 +10,7 @@ model = load_model("keras_model.h5", compile=False)
 class_names = open("labels.txt", "r").readlines()
 
 # Streamlit app
-st.title("Image Classification with TensorFlow")
+st.title("Cat or Dog Classification")
 
 # File uploader
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
